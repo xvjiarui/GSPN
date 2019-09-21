@@ -45,7 +45,7 @@ def get_palette(num_cls):
             palette[j * 3 + 2] |= (((lab >> 2) & 1) << (7 - i))
             i += 1
             lab >>= 3
-    palette = np.array(palette).reshape(3, -1).transpose()
+    palette = np.array(palette).reshape(3, -1).transpose()/255.
     return palette
 
 
@@ -155,12 +155,13 @@ def convert(visu_dir):
                     time.sleep(0.5)
                     print('saving: {}'.format(mask_out_file))
                     v.close()
-                bbox_file = pts_file.replace('.pts', '.bbox')
-                if os.path.exists(bbox_file):
-                    with open(bbox_file) as f:
-                        bbox = np.loadtxt(f).astype(np.int)
-                else:
-                    bbox = None
+                # bbox_file = pts_file.replace('.pts', '.bbox')
+                # if os.path.exists(bbox_file):
+                #     with open(bbox_file) as f:
+                #         bbox = np.loadtxt(f).astype(np.int)
+                # else:
+                #     bbox = None
+                bbox = None
                 if bbox is not None:
                     palette = get_palette(bbox.shape[0])
                     bbox_new = bbox.copy()

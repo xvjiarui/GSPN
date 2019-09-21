@@ -43,6 +43,8 @@ class PartNetDataset():
         if isinstance(src_data_path, list):
             for src in src_data_path:
                 chunk_file.extend(glob.glob(os.path.join(src, self.data_type+'*.h5')))
+        else:
+            chunk_file.extend(glob.glob(os.path.join(src_data_path, self.data_type+'*.h5')))
         # chunk_file = glob.glob(os.path.join(src_data_path, self.data_type+'*-00.h5'))
         print chunk_file
         chunk_file.sort()

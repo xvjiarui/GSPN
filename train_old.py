@@ -108,6 +108,8 @@ TEST_DATASET.ngroup = CONFIG.NUM_GROUP
 CONFIG.NUM_CATEGORY = np.maximum(TRAIN_DATASET.nseg, TEST_DATASET.nseg)
 TRAIN_DATASET.nseg = CONFIG.NUM_CATEGORY
 TEST_DATASET.nseg = CONFIG.NUM_CATEGORY
+if FLAGS.pseudo_seg:
+    CONFIG.NUM_CATEGORY = 2
 
 def get_loss_weight(batch):
     alpha = 1.0*KL_WEIGHT - tf.train.exponential_decay(

@@ -33,6 +33,7 @@ parser.add_argument('--model', default='model_mrcnn3d', help='Model name [defaul
 parser.add_argument('--model_path', default='log/model.ckpt', help='model checkpoint file path [default: log/model.ckpt]')
 parser.add_argument('--category', type=str, help='category')
 parser.add_argument('--level_id', type=int, help='level_id')
+parser.add_argument('--pseudo_seg', action='store_true')
 FLAGS = parser.parse_args()
 
 CONFIG.NUM_POINT = FLAGS.num_point
@@ -53,11 +54,11 @@ if not os.path.exists('./data/partnet/ins_seg_h5_for_detection/cache/{}-{}/'.for
 TRAIN_DATASET = data_prep.PartNetDataset('./data/partnet/ins_seg_h5_for_detection/{}-{}/'.format(CAT, LEVEL),
                                          './data/partnet/ins_seg_h5_for_detection/cache/{}-{}/train_{}_00_cache.npz'.format(CAT, LEVEL, CONFIG.NUM_POINT),
                                          data_type='train', npoint=CONFIG.NUM_POINT, npoint_ins=CONFIG.NUM_POINT_INS, is_augment=True, permute_points=True,
-                                         pseudo_seg=False)
+                                         pseudo_seg=FLAGS.pseudo_seg)
 TEST_DATASET = data_prep.PartNetDataset('./data/partnet/ins_seg_h5_for_detection/{}-{}/'.format(CAT, LEVEL),
                                         './data/partnet/ins_seg_h5_for_detection//cache/{}-{}/val_{}_00_cache.npz'.format(CAT, LEVEL, CONFIG.NUM_POINT),
                                         data_type='val', npoint=CONFIG.NUM_POINT, npoint_ins=CONFIG.NUM_POINT_INS, is_augment=False, permute_points=False,
-                                        pseudo_seg=False)
+                                        pseudo_seg=FLAGS.pseudo_seg)
 
 CONFIG.NUM_GROUP = np.maximum(TRAIN_DATASET.ngroup, TEST_DATASET.ngroup)
 TRAIN_DATASET.ngroup = CONFIG.NUM_GROUP
@@ -65,6 +66,8 @@ TEST_DATASET.ngroup = CONFIG.NUM_GROUP
 CONFIG.NUM_CATEGORY = np.maximum(TRAIN_DATASET.nseg, TEST_DATASET.nseg)
 TRAIN_DATASET.nseg = CONFIG.NUM_CATEGORY
 TEST_DATASET.nseg = CONFIG.NUM_CATEGORY
+if FLAGS.pseudo_seg:
+    CONFIG.NUM_CATEGORY = 2
 
 def get_model(batch_size):
     with tf.Graph().as_default():
@@ -343,5 +346,5 @@ if __name__ == '__main__':
 
     ##### Generate prediction
     sess, ops = get_model(batch_size=1)
-    output_prediction_partnet(sess, ops, './data/partnet/ins_seg_h5_gt/{}-{}/'.format(CAT, LEVEL), os.path.join(LOG_DIR, 'pred', '{}-{}'.format(CAT, LEVEL)), datatype='test')
+    output_prediction_partnet(sess, ops, './data/partnet/ins_seg_h5_for_detection/{}-{}/'.format(CAT, LEVEL), os.path.join(LOG_DIR, 'pred', '{}-{}'.format(CAT, LEVEL)), datatype='val')
 
