@@ -1,6 +1,3 @@
-#include<stdio.h>
-
-
 // input: radius (1), nsample (1), xyz1 (b,n,3), xyz2 (b,m,3)
 // output: idx (b,m,nsample), pts_cnt (b,m)
 __global__ void query_ball_point_gpu(int b, int n, int m, float radius, int nsample, const float *xyz1, const float *xyz2, int *idx, int *pts_cnt) {
@@ -59,8 +56,6 @@ __global__ void group_point_gpu(int b, int n, int c, int m, int nsample, const f
     }
 }
 
-
-
 // input: grad_out (b,m,nsample,c), idx (b,m,nsample), 
 // output: grad_points (b,n,c)
 __global__ void group_point_grad_gpu(int b, int n, int c, int m, int nsample, const float *grad_out, const int *idx, float *grad_points) {
@@ -81,62 +76,6 @@ __global__ void group_point_grad_gpu(int b, int n, int c, int m, int nsample, co
         }
     }
 }
-
-
-// input: points_feat (b,num_point,c), idx (b,num_query,nsample)
-// output: out (b,num_query,c), max_idx (b,num_query,c)
-__global__ void group_maxpool_gpu(int b, int num_point, int chan, int num_query, int nsample, const float *points, const int *idx, float *out, int *max_idx) {
-    int batch_index = blockIdx.x;
-    points += num_point*chan*batch_index;
-    idx += num_query*nsample*batch_index;
-    out += num_query*chan*batch_index;
-    max_idx += num_query*chan*batch_index;
-
-    int index = threadIdx.x;
-    int stride = blockDim.x;
-    float temp_feat;
-    int one_max_idx;
-    float max_feat=-10000.0;
-
-
-    for (int j=index;j<num_query;j+=stride) {
-        for (int l=0;l<chan;++l) {
-            max_feat=-10000.0;
-            for (int k=0;k<nsample;++k) {
-                int ii = idx[j*nsample+k];
-                temp_feat = points[ii*chan+l];
-                if(temp_feat>max_feat) {max_feat=temp_feat; one_max_idx=ii;}
-            }
-            out[j*chan+l] = max_feat;
-            max_idx[j*chan+l] = one_max_idx;
-        } 
-    }
-}
-
-
-// input: grad_out (b,num_query,c), max_idx (b,num_query,c),
-// output: grad_points (b,num_point,c)
-__global__ void group_maxpool_grad_gpu(int b, int num_point, int chan, int num_query, const float *grad_out, const int *max_idx, float *grad_points) {
-    int batch_index = blockIdx.x;
-    max_idx += num_query*chan*batch_index;
-    grad_out += num_query*chan*batch_index;
-    grad_points += num_point*chan*batch_index;
-
-    int index = threadIdx.x;
-    int stride = blockDim.x;
-
-    for (int j=index;j<num_query;j+=stride) {
-        for (int l=0;l<chan;++l) {
-            int ii = max_idx[j*chan+l];
-            atomicAdd(&grad_points[ii*chan+l], grad_out[j*chan+l]);
-        }
-    }
-}
-
-
-
-
-
 
 // input: k (1), distance matrix dist (b,m,n)
 // output: idx (b,m,n), dist_out (b,m,n)
@@ -200,16 +139,3 @@ void groupPointGradLauncher(int b, int n, int c, int m, int nsample, const float
     //group_point_grad_gpu<<<1,1>>>(b,n,c,m,nsample,grad_out,idx,grad_points);
     //cudaDeviceSynchronize();
 }
-void groupMaxpoolLauncher(int b, int n, int c, int m, int nsample, const float *points, const int *idx, float *out, int *max_idx){
-    group_maxpool_gpu<<<b,256>>>(b,n,c,m,nsample,points,idx,out,max_idx);
-    //cudaDeviceSynchronize();
-}
-void groupMaxpoolGradLauncher(int b, int n, int c, int m, const float *grad_out, const int *max_idx, float *grad_points){
-    group_maxpool_grad_gpu<<<b,256>>>(b,n,c,m,grad_out,max_idx,grad_points);
-    //group_point_grad_gpu<<<1,1>>>(b,n,c,m,nsample,grad_out,idx,grad_points);
-    //cudaDeviceSynchronize();
-}
-
-
-
-
