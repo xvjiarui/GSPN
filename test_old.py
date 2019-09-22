@@ -9,67 +9,35 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(ROOT_DIR) # provider
 sys.path.append(os.path.join(ROOT_DIR, 'models'))
 sys.path.append(os.path.join(ROOT_DIR, 'utils'))
-import data_prep_old as  data_prep
 import config_old as config
 from sklearn.neighbors import NearestNeighbors
-from collections import defaultdict
 import random
 import copy
 import glob
 import json
 import h5py
-random.seed(0)
 
+random.seed(0)
 CONFIG = config.Config()
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--gpu', type=int, default=0, help='GPU to use [default: GPU 0]')
-parser.add_argument('--num_point', type=int, default=CONFIG.NUM_POINT, help='Point Number in a Scene [default: 2048]')
-parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
-parser.add_argument('--num_point_ins', type=int, default=CONFIG.NUM_POINT_INS, help='Point Number of an Instance [default: 512]')
-parser.add_argument('--num_category', type=int, default=CONFIG.NUM_CATEGORY, help='Maximum Number of Categories [default: 3]')
-parser.add_argument('--num_sample', type=int, default=CONFIG.NUM_SAMPLE, help='Number of Sampled Seed Points [default: 128]')
-parser.add_argument('--model', default='model_mrcnn3d', help='Model name [default: model]')
-parser.add_argument('--model_path', default='log/model.ckpt', help='model checkpoint file path [default: log/model.ckpt]')
-parser.add_argument('--category', type=str, help='category')
-parser.add_argument('--level_id', type=int, help='level_id')
-parser.add_argument('--pseudo_seg', action='store_true')
-FLAGS = parser.parse_args()
+def parse_args():
 
-CONFIG.NUM_POINT = FLAGS.num_point
-CONFIG.NUM_POINT_INS = FLAGS.num_point_ins
-CONFIG.NUM_CATEGORY = FLAGS.num_category
-CONFIG.NUM_SAMPLE = FLAGS.num_sample
-MODEL_PATH = FLAGS.model_path
-LOG_DIR = FLAGS.log_dir
-if not os.path.exists(LOG_DIR):
-    os.mkdir(LOG_DIR)
-GPU_INDEX = FLAGS.gpu
-MODEL = importlib.import_module(FLAGS.model) # import network module
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--gpu', type=int, default=0, help='GPU to use [default: GPU 0]')
+    parser.add_argument('--num_point', type=int, default=CONFIG.NUM_POINT, help='Point Number in a Scene [default: 2048]')
+    parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
+    parser.add_argument('--num_point_ins', type=int, default=CONFIG.NUM_POINT_INS, help='Point Number of an Instance [default: 512]')
+    parser.add_argument('--num_category', type=int, default=CONFIG.NUM_CATEGORY, help='Maximum Number of Categories [default: 3]')
+    parser.add_argument('--num_sample', type=int, default=CONFIG.NUM_SAMPLE, help='Number of Sampled Seed Points [default: 128]')
+    parser.add_argument('--model', default='model_mrcnn3d', help='Model name [default: model]')
+    parser.add_argument('--model_path', type=str, nargs='+', help='model checkpoint file path [default: log/model.ckpt]')
+    parser.add_argument('--category', type=str, help='category')
+    parser.add_argument('--level_id', type=int, help='level_id')
+    parser.add_argument('--pseudo_seg', action='store_true')
 
-CAT = FLAGS.category
-LEVEL = FLAGS.level_id
-if not os.path.exists('./data/partnet/ins_seg_h5_for_detection/cache/{}-{}/'.format(CAT, LEVEL)):
-    os.makedirs('./data/partnet/ins_seg_h5_for_detection/cache/{}-{}/'.format(CAT, LEVEL))
-TRAIN_DATASET = data_prep.PartNetDataset('./data/partnet/ins_seg_h5_for_detection/{}-{}/'.format(CAT, LEVEL),
-                                         './data/partnet/ins_seg_h5_for_detection/cache/{}-{}/train_{}_00_cache.npz'.format(CAT, LEVEL, CONFIG.NUM_POINT),
-                                         data_type='train', npoint=CONFIG.NUM_POINT, npoint_ins=CONFIG.NUM_POINT_INS, is_augment=True, permute_points=True,
-                                         pseudo_seg=FLAGS.pseudo_seg)
-TEST_DATASET = data_prep.PartNetDataset('./data/partnet/ins_seg_h5_for_detection/{}-{}/'.format(CAT, LEVEL),
-                                        './data/partnet/ins_seg_h5_for_detection//cache/{}-{}/val_{}_00_cache.npz'.format(CAT, LEVEL, CONFIG.NUM_POINT),
-                                        data_type='val', npoint=CONFIG.NUM_POINT, npoint_ins=CONFIG.NUM_POINT_INS, is_augment=False, permute_points=False,
-                                        pseudo_seg=FLAGS.pseudo_seg)
+    return parser.parse_args()
 
-CONFIG.NUM_GROUP = np.maximum(TRAIN_DATASET.ngroup, TEST_DATASET.ngroup)
-TRAIN_DATASET.ngroup = CONFIG.NUM_GROUP
-TEST_DATASET.ngroup = CONFIG.NUM_GROUP
-CONFIG.NUM_CATEGORY = np.maximum(TRAIN_DATASET.nseg, TEST_DATASET.nseg)
-TRAIN_DATASET.nseg = CONFIG.NUM_CATEGORY
-TEST_DATASET.nseg = CONFIG.NUM_CATEGORY
-if FLAGS.pseudo_seg:
-    CONFIG.NUM_CATEGORY = 2
-
-def get_model(batch_size):
+def get_model(batch_size, GPU_INDEX, MODEL, MODEL_PATH):
     with tf.Graph().as_default():
         with tf.device('/gpu:'+str(GPU_INDEX)):
             CONFIG.BATCH_SIZE = batch_size
@@ -192,10 +160,10 @@ def output_prediction_partnet(sess, ops, input_path, output_path, datatype='val'
             # mrcnn3d_mask_selected, pc_coord_cropped_final_unnormalized, detections, sem_class_logits, pc_seed, fb_prob = sess.run([ops['end_points']['mrcnn3d_mask_selected'],
             #     ops['end_points']['pc_coord_cropped_final_unnormalized'], ops['end_points']['detections'],
             #     ops['end_points']['sem_class_logits'], ops['end_points']['pc_seed'], ops['end_points']['fb_prob']], feed_dict=feed_dict)
-            mrcnn3d_mask_selected, pc_coord_cropped_final_unnormalized, detections, sem_class_logits, pc_seed, fb_prob, bbox_ins_pred = sess.run([ops['end_points']['mrcnn3d_mask_selected'],
+            mrcnn3d_mask_selected, pc_coord_cropped_final_unnormalized, detections, sem_class_logits, pc_seed, fb_prob = sess.run([ops['end_points']['mrcnn3d_mask_selected'],
                                                                                                                                    ops['end_points']['pc_coord_cropped_final_unnormalized'], ops['end_points']['detections'],
-                                                                                                                                   ops['end_points']['sem_class_logits'], ops['end_points']['pc_seed'], ops['end_points']['fb_prob'],
-                                                                                                                                   ops['end_points']['bbox_ins_pred']], feed_dict=feed_dict)
+                                                                                                                                   ops['end_points']['sem_class_logits'], ops['end_points']['pc_seed'], ops['end_points']['fb_prob']],
+                                                                                                                                  feed_dict=feed_dict)
             batch_pc = np.squeeze(batch_pc, 0) # [NUM_POINT, 3]
             mrcnn3d_mask_selected = np.squeeze(mrcnn3d_mask_selected, 0) # [DETECTION_MAX_INSTANCES, NUM_POINT_PER_ROI]
             pc_coord_cropped_final_unnormalized = np.squeeze(pc_coord_cropped_final_unnormalized, 0) # [DETECTION_MAX_INSTANCES, NUM_POINT_PER_ROI, 3]
@@ -229,12 +197,12 @@ def output_prediction_partnet(sess, ops, input_path, output_path, datatype='val'
             output_valid[kk, :nins_out] = True
             output_conf[kk, :nins_out] = confidence_pred
 
-            if kk < 8 and group_label_pred.shape[0] > 0:
+            if i == 0 and kk < 8 and group_label_pred.shape[0] > 0:
                 mask = output_mask[kk, :nins_out, :]
                 label = output_label[kk, :nins_out]
                 valid = output_valid[kk, :nins_out]
                 conf = output_conf[kk, :nins_out]
-                bbox = np.squeeze(bbox_ins_pred)[np.argsort(np.squeeze(fb_prob)[:, 1])[::-1][:nins_out]]
+                bbox = detections[:, :6]
                 gen_visu(os.path.join(output_path, 'visu'), kk, batch_pc, mask, valid, conf, bbox, batch_record)
 
         hf = h5py.File(os.path.join(output_path, os.path.basename(chunkfile_list[i])),'w')
@@ -274,10 +242,10 @@ def render_pts_with_label_pptk(out, pts, label, delete_img=False, base=0, point_
     export_label(tmp_label, label)
 
 def render_pts_with_bbox_pptk(out, pts, bbox, delete_img=False, base=0, point_size=6):
-    tmp_pts = out.replace('.png', '.pts')
+    # tmp_pts = out.replace('.png', '.pts')
     tmp_bbox = out.replace('.png', '.bbox')
 
-    export_pts(tmp_pts, pts)
+    # export_pts(tmp_pts, pts)
     export_bbox(tmp_bbox, bbox)
 
 def render_pts_with_mask_pptk(out, pts, mask, delete_img=False, base=0, point_size=6):
@@ -340,11 +308,43 @@ def gen_visu(visu_dir, base_idx, pts, mask, valid, conf, bbox, record, num_pts_t
                 fout.write('#pts: %d\n' % np.sum(cur_mask[cur_idx, :]))
 
 
-if __name__ == '__main__':
-    BATCH_SIZE = 1
-    ##### Generate ground truth
+def main():
+    FLAGS = parse_args()
+    CONFIG.NUM_POINT = FLAGS.num_point
+    CONFIG.NUM_POINT_INS = FLAGS.num_point_ins
+    CONFIG.NUM_CATEGORY = 2
+    CONFIG.NUM_SAMPLE = FLAGS.num_sample
+    LOG_DIR = FLAGS.log_dir
+    if not os.path.exists(LOG_DIR):
+        os.mkdir(LOG_DIR)
+    GPU_INDEX = FLAGS.gpu
+    MODEL = importlib.import_module(FLAGS.model) # import network module
 
-    ##### Generate prediction
-    sess, ops = get_model(batch_size=1)
-    output_prediction_partnet(sess, ops, './data/partnet/ins_seg_h5_for_detection/{}-{}/'.format(CAT, LEVEL), os.path.join(LOG_DIR, 'pred', '{}-{}'.format(CAT, LEVEL)), datatype='val')
+    print('level id: ', FLAGS.level_id)
+    CAT = FLAGS.category
+    LEVEL = FLAGS.level_id
+    for idx, MODEL_PATH in enumerate(FLAGS.model_path):
+        # if not os.path.exists('./data/partnet/ins_seg_h5_for_detection/cache/{}-{}/'.format(CAT, LEVEL)):
+        #     os.makedirs('./data/partnet/ins_seg_h5_for_detection/cache/{}-{}/'.format(CAT, LEVEL))
+        # TRAIN_DATASET = data_prep.PartNetDataset('./data/partnet/ins_seg_h5_for_detection/{}-{}/'.format(CAT, LEVEL),
+        #                                          './data/partnet/ins_seg_h5_for_detection/cache/{}-{}/train_{}_00_cache.npz'.format(CAT, LEVEL, CONFIG.NUM_POINT),
+        #                                          data_type='train', npoint=CONFIG.NUM_POINT, npoint_ins=CONFIG.NUM_POINT_INS, is_augment=True, permute_points=True,
+        #                                          pseudo_seg=FLAGS.pseudo_seg)
+        # TEST_DATASET = data_prep.PartNetDataset('./data/partnet/ins_seg_h5_for_detection/{}-{}/'.format(CAT, LEVEL),
+        #                                         './data/partnet/ins_seg_h5_for_detection//cache/{}-{}/val_{}_00_cache.npz'.format(CAT, LEVEL, CONFIG.NUM_POINT),
+        #                                         data_type='val', npoint=CONFIG.NUM_POINT, npoint_ins=CONFIG.NUM_POINT_INS, is_augment=False, permute_points=False,
+        #                                         pseudo_seg=FLAGS.pseudo_seg)
+        #
+        # CONFIG.NUM_GROUP = np.maximum(TRAIN_DATASET.ngroup, TEST_DATASET.ngroup)
+        # TRAIN_DATASET.ngroup = CONFIG.NUM_GROUP
+        # TEST_DATASET.ngroup = CONFIG.NUM_GROUP
+        # CONFIG.NUM_CATEGORY = np.maximum(TRAIN_DATASET.nseg, TEST_DATASET.nseg)
+        # TRAIN_DATASET.nseg = CONFIG.NUM_CATEGORY
+        # TEST_DATASET.nseg = CONFIG.NUM_CATEGORY
+        sess, ops = get_model(batch_size=1, MODEL=MODEL, MODEL_PATH=MODEL_PATH, GPU_INDEX=GPU_INDEX)
+        print 'Testing: {}, {}'.format(CAT, MODEL_PATH)
+        output_prediction_partnet(sess, ops, './data/partnet/ins_seg_h5_for_detection/{}-{}/'.format(CAT, LEVEL), os.path.join(LOG_DIR, 'pred', '{}/Level-{}'.format(CAT, idx+1)), datatype='test')
+
+if __name__ == '__main__':
+    main()
 
