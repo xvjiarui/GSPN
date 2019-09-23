@@ -343,7 +343,7 @@ def main():
         # TEST_DATASET.nseg = CONFIG.NUM_CATEGORY
         sess, ops = get_model(batch_size=1, MODEL=MODEL, MODEL_PATH=MODEL_PATH, GPU_INDEX=GPU_INDEX)
         print 'Testing: {}, {}'.format(CAT, MODEL_PATH)
-        output_prediction_partnet(sess, ops, './data/partnet/ins_seg_h5_for_detection/{}-{}/'.format(CAT, LEVEL), os.path.join(LOG_DIR, 'pred', '{}/Level-{}'.format(CAT, idx+1)), datatype='test')
+        output_prediction_partnet(sess, ops, './data/partnet/ins_seg_h5_for_detection/{}-{}/'.format(CAT, LEVEL), os.path.join(LOG_DIR, 'pred', '{}/Level_{}'.format(CAT, idx+1)), datatype='test')
 
 if __name__ == '__main__':
     main()
